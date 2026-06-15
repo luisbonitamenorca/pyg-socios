@@ -1235,10 +1235,10 @@ function buildResumenCharts(rows, rowsP) {
 
   let html = `<thead><tr>
     <th style="text-align:left;position:sticky;left:0;background:var(--bg);min-width:160px"></th>
-    <th style="background:#e8edf5;color:var(--blue);font-weight:700">DIFERENCIA</th>
-    <th style="background:#e8edf5;color:var(--blue);font-weight:700">VARIACIÓN %</th>
     <th style="background:#dfeaf7;color:var(--blue);font-weight:700">REAL ENE-${MS[mesHasta-1].toUpperCase()}</th>
     <th style="background:#dfeaf7;color:var(--blue);font-weight:700">PPTO ENE-${MS[mesHasta-1].toUpperCase()}</th>
+    <th style="background:#e8edf5;color:var(--blue);font-weight:700">DIFERENCIA</th>
+    <th style="background:#e8edf5;color:var(--blue);font-weight:700">VARIACIÓN %</th>
     ${MS.map((m,i)=>`<th style="${i>=mesHasta?'opacity:.45':''}">${m}</th>`).join('')}
   </tr></thead><tbody>`;
 
@@ -1313,10 +1313,10 @@ function buildResumenCharts(rows, rowsP) {
     }
     html += `<tr>
       <td style="text-align:left;position:sticky;left:0;background:var(--surface);${style}">${r.label}</td>
-      ${difCell(difH, favDirRow)}
-      ${varCell(varH, favDirRow)}
       ${fmtTotalCell(realHasta, r.pct, '#e3ecf6')}
       ${fmtTotalCell(pptoHasta, r.pct, '#e3ecf6')}
+      ${difCell(difH, favDirRow)}
+      ${varCell(varH, favDirRow)}
       ${r.vals.map((v,i)=>{
         const dim = i>=mesHasta ? 'opacity:.45;' : '';
         if (v==null) return `<td style="${dim}">—</td>`;
@@ -1358,10 +1358,10 @@ function buildPYGTable(rows, rowsP) {
   const monthLabel = MS[mesHasta-1].toUpperCase();
   let html = `<thead><tr>
     <th style="text-align:left;min-width:240px;position:sticky;left:0;z-index:2;background:var(--bg)">${detalle==='grupo'?'Grupo':'Cuenta'}</th>
-    <th style="background:#e8edf5;color:var(--blue);font-weight:700">DIFERENCIA</th>
-    <th style="background:#e8edf5;color:var(--blue);font-weight:700">VARIACIÓN %</th>
     <th style="background:#dfeaf7;color:var(--blue);font-weight:700">REAL ENE-${monthLabel}</th>
     <th style="background:#dfeaf7;color:var(--blue);font-weight:700">PPTO ENE-${monthLabel}</th>
+    <th style="background:#e8edf5;color:var(--blue);font-weight:700">DIFERENCIA</th>
+    <th style="background:#e8edf5;color:var(--blue);font-weight:700">VARIACIÓN %</th>
     ${MS.map((m,i)=>`<th style="${i>=mesHasta?'opacity:.45':''}">${m}</th>`).join('')}
   </tr></thead><tbody>`;
 
@@ -1427,10 +1427,10 @@ function buildTotalCells(valsR, valsP, favDir) {
   const pptoH = valsP ? sumHasta(valsP, mesHasta) : null;
   const dif    = pptoH != null ? realH - pptoH : null;
   const varPct = (pptoH != null && Math.abs(pptoH) > 0.005) ? (realH - pptoH) / Math.abs(pptoH) * 100 : null;
-  return difCell(dif, favDir) +
-         varCell(varPct, favDir) +
-         totCell(realH, 'realH', favDir) +
-         totCell(pptoH, 'pptoH', favDir);
+  return totCell(realH, 'realH', favDir) +
+         totCell(pptoH, 'pptoH', favDir) +
+         difCell(dif, favDir) +
+         varCell(varPct, favDir);
 }
 
 function monthlySumRow(label, valsR, valsP, favDir, cls) {
@@ -1695,10 +1695,10 @@ function buildNegocioTable() {
   const CANAL_COLS = ['#185FA5','#1D9E75','#9A6200','#7F77DD','#C0392B','#0F6E56','#D4537E','#5B6770'];
   let html = `<thead><tr>
     <th style="text-align:left;min-width:240px;position:sticky;left:0;z-index:2;background:var(--bg)">Concepto</th>
-    <th style="background:#e8edf5;color:var(--blue);font-weight:700">DIFERENCIA</th>
-    <th style="background:#e8edf5;color:var(--blue);font-weight:700">VARIACIÓN %</th>
     <th style="background:#dfeaf7;color:var(--blue);font-weight:700">REAL ENE-${monthLabel}</th>
     <th style="background:#dfeaf7;color:var(--blue);font-weight:700">PPTO ENE-${monthLabel}</th>
+    <th style="background:#e8edf5;color:var(--blue);font-weight:700">DIFERENCIA</th>
+    <th style="background:#e8edf5;color:var(--blue);font-weight:700">VARIACIÓN %</th>
     ${canales.map((c,i)=>`<th style="color:${CANAL_COLS[i%CANAL_COLS.length]}">${c}</th>`).join('')}
   </tr></thead><tbody>`;
 
@@ -1722,10 +1722,10 @@ function buildNegocioTable() {
     const pH  = mP ? sumHasta(mP, mesHasta) : null;
     const dif = pH != null ? rH - pH : null;
     const varPct = (pH != null && Math.abs(pH) > 0.005) ? (rH - pH) / Math.abs(pH) * 100 : null;
-    return difCell(dif, favDir) +
-           varCell(varPct, favDir) +
-           totCell(rH, 'realH', favDir) +
-           totCell(pH, 'pptoH', favDir);
+    return totCell(rH, 'realH', favDir) +
+           totCell(pH, 'pptoH', favDir) +
+           difCell(dif, favDir) +
+           varCell(varPct, favDir);
   };
 
   // Celda de centro de coste: muestra valor ACUMULADO HASTA MES SELECCIONADO
