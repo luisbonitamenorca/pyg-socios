@@ -854,6 +854,16 @@ function getGrupo(cuenta) {
   return pref;
 }
 
+// Devuelve el ID/número del grupo de una cuenta (para mostrarlo junto a la descripción)
+function getGrupoId(cuenta) {
+  if (D.pdc[cuenta]) return D.pdc[cuenta].grupoId;
+  const pref = String(cuenta).slice(0,4);
+  for (const k of Object.keys(D.pdc)) {
+    if (k.startsWith(pref)) return D.pdc[k].grupoId;
+  }
+  return pref;
+}
+
 function isInterno(cuenta) {
   if (D.pdc[cuenta]) return D.pdc[cuenta].interno;
   return false;
@@ -879,6 +889,7 @@ function aggregate(dataset, canalFilter, excluirInternos=false) {
       map[r.cuenta] = {
         cuenta:r.cuenta, desc:r.desc,
         grupo: getGrupo(r.cuenta),
+        grupoId: getGrupoId(r.cuenta),
         tipo: getTipo(r.cuenta),
         mensual:[...r.mensual], total:r.total
       };
@@ -1402,14 +1413,16 @@ function buildGroupedRows(rows, rowsP) {
       gruposMap[r.grupo].cuentas.push(r);
     });
 
-    // Orden por número de cuenta mínima del grupo (ascendente, estable año a año)
-    // Filtramos por saldo acumulado HASTA mesHasta (no por saldo anual)
+    // Orden por número de cuenta mínima del grupo (ascendente, estable año a año).
+    // Mostramos SIEMPRE todos los grupos, tengan saldo o no en el periodo —
+    // así el orden y el conjunto de filas no cambian al mover "Mes hasta".
     const entries = Object.entries(gruposMap)
       .map(([g,d])=>([g, d, sumHasta(d.mensual, mesHasta), minCuentaGrupo(rows, g, tipo)]))
-      .filter(([,,tH])=>Math.abs(tH)>0.01)
       .sort((a,b)=> String(a[3]).localeCompare(String(b[3])));
 
-    entries.forEach(([grp, gd]) => {
+    entries.forEach(([grp, gd, , minCta]) => {
+      const gid = getGrupoId(minCta);
+      const gLabel = (gid && grp !== gid) ? `${gid} · ${grp}` : grp;
       const valsR = gd.mensual;
       let valsP = null;
       if (rowsP) {
@@ -1424,7 +1437,7 @@ function buildGroupedRows(rows, rowsP) {
       const caret = isOpen ? '▼' : '▶';
       const grpEsc = grp.replace(/"/g,'&quot;');
       html += `<tr class="${cls}" onclick="toggleGrupo('${grpEsc.replace(/'/g,"\\'")}', '${tipo}')">
-        <td ${sticky}><span class="expand-btn">${caret}</span>${grp}</td>
+        <td ${sticky}><span class="expand-btn">${caret}</span>${gLabel}</td>
         ${buildTotalCells(valsR, valsP, favDir)}
         ${valsR.map((v,i)=>cell(v, valsP?valsP[i]:null, favDir, {dim: i>=mesHasta})).join('')}
       </tr>`;
@@ -1433,7 +1446,6 @@ function buildGroupedRows(rows, rowsP) {
       // También filtradas por saldo acumulado hasta mesHasta
       if (isOpen) {
         const cuentasGrp = rows.filter(r=>r.tipo===tipo && r.grupo===grp)
-          .filter(r => Math.abs(sumHasta(r.mensual, mesHasta)) > 0.01)
           .sort((a,b)=> String(a.cuenta).localeCompare(String(b.cuenta)));
         cuentasGrp.forEach(r => {
           const pRow = rowsP ? rowsP.find(x=>x.cuenta===r.cuenta) : null;
@@ -1459,10 +1471,9 @@ function buildGroupedRows(rows, rowsP) {
 function buildDetailRows(rows, rowsP) {
   let html = '';
   const colSpan = 17;
-  // Orden: primero ingresos, luego gastos; dentro de cada tipo por número de cuenta
-  // Filtrado: cuentas con saldo cero acumulado hasta mesHasta se omiten
+  // Orden: primero ingresos, luego gastos; dentro de cada tipo por número de cuenta.
+  // Mostramos SIEMPRE todas las cuentas, tengan saldo o no en el periodo.
   const sorted = [...rows].filter(r=>r.tipo!=='neutro')
-    .filter(r => Math.abs(sumHasta(r.mensual, mesHasta)) > 0.01)
     .sort((a,b)=>{
       if (a.tipo!==b.tipo) return a.tipo==='ingreso'?-1:1;
       return String(a.cuenta).localeCompare(String(b.cuenta));
@@ -1587,17 +1598,17 @@ function buildNegocioTable() {
     </tr>`;
 
     if (detalle === 'grupo') {
-      // Lista de grupos ordenados por número de cuenta mínima
+      // Lista de grupos ordenados por número de cuenta mínima.
+      // Mostramos SIEMPRE todos los grupos (mismo orden y conjunto en todas las vistas).
       const grupos = [...new Set(rowsTotal.filter(r=>r.tipo===tipo).map(r=>r.grupo))]
         .map(g => [g, minCuentaGrupo(rowsTotal, g, tipo)])
-        .sort((a,b)=> String(a[1]).localeCompare(String(b[1])))
-        .map(([g])=>g);
+        .sort((a,b)=> String(a[1]).localeCompare(String(b[1])));
 
-      grupos.forEach(grp => {
+      grupos.forEach(([grp, minCta]) => {
+        const gid = getGrupoId(minCta);
+        const gLabel = (gid && grp !== gid) ? `${gid} · ${grp}` : grp;
         const mensTotal  = sumMensRowsGrp(rowsTotal, tipo, grp);
         const mensTotalP = rowsPTotal ? sumMensRowsGrp(rowsPTotal, tipo, grp) : null;
-        // Filtrado por acumulado hasta mes seleccionado (en lugar de saldo anual)
-        if (Math.abs(sumHasta(mensTotal, mesHasta)) < 0.01) return;
 
         const cls = tipo==='ingreso'?'r-ing':'r-gto';
         const sticky = `style="text-align:left;position:sticky;left:0;background:${tipo==='ingreso'?'#f5fbf8':'#fdfaf8'};cursor:pointer;user-select:none"`;
@@ -1605,7 +1616,7 @@ function buildNegocioTable() {
         const caret = isOpen ? '▼' : '▶';
         const grpEsc = grp.replace(/"/g,'&quot;').replace(/'/g,"\\'");
         html += `<tr class="${cls}" onclick="toggleGrupo('${grpEsc}', '${tipo}')">
-          <td ${sticky}><span class="expand-btn">${caret}</span>${grp}</td>
+          <td ${sticky}><span class="expand-btn">${caret}</span>${gLabel}</td>
           ${negTotCells(mensTotal, mensTotalP, favDir)}
           ${canales.map((c,ci) => {
             const vR = sumHasta(sumMensRowsGrp(rowsPC[ci], tipo, grp), mesHasta);
@@ -1617,7 +1628,6 @@ function buildNegocioTable() {
         // Drill-down: cuentas del grupo (ordenadas por número, filtradas por saldo hasta mes)
         if (isOpen) {
           const cuentasGrp = rowsTotal.filter(r=>r.tipo===tipo && r.grupo===grp)
-            .filter(r => Math.abs(sumHasta(r.mensual, mesHasta)) > 0.01)
             .sort((a,b)=> String(a.cuenta).localeCompare(String(b.cuenta)));
           cuentasGrp.forEach(r => {
             const pRow = rowsPTotal ? rowsPTotal.find(x=>x.cuenta===r.cuenta) : null;
@@ -1639,9 +1649,8 @@ function buildNegocioTable() {
       });
 
     } else {
-      // detalle === 'cuenta' — ordenado por número de cuenta, filtrado por saldo hasta mes
+      // detalle === 'cuenta' — ordenado por número de cuenta; mostramos todas
       const cuentas = rowsTotal.filter(r=>r.tipo===tipo)
-        .filter(r => Math.abs(sumHasta(r.mensual, mesHasta)) > 0.01)
         .sort((a,b)=> String(a.cuenta).localeCompare(String(b.cuenta)));
       cuentas.forEach(r => {
         const pRow = rowsPTotal ? rowsPTotal.find(x=>x.cuenta===r.cuenta) : null;
