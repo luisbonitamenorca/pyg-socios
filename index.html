@@ -395,6 +395,7 @@ let mesHasta = 12; // 1..12 — mes hasta el que se acumulan los datos
 let charts = {};
 let expanded = {};      // grupos expandidos en vista grupo (drill-down nivel 1)
 let expandedCta = {};   // cuentas expandidas para mostrar centros de coste (drill-down nivel 2)
+let expandedCC = {};    // centros de coste expandidos para mostrar proveedores (drill-down nivel 3). Clave: 'cuenta|canal'
 let adminFile = null;
 
 // ---- SUPABASE HELPERS ----
@@ -549,6 +550,7 @@ function parseWorkbook(wb) {
   const sheetPDC = findSheet(wb, ['PLAN DE CUENTAS','PLAN_CUENTAS','PDC']);
   const sheetPOOL = findSheet(wb, ['POOL BANCARIO','POOL_BANCARIO','POOL']);
   const sheetTES  = findSheet(wb, ['TESORERIA','TESORERÍA','TES']);
+  const sheetPROV = findSheet(wb, ['POR PROVEEDOR','POR_PROVEEDOR','PROVEEDORES','GASTOS POR PROVEEDOR']);
 
   if (!sheetSyS) throw new Error('No se encuentra la pestaña SUMAS Y SALDOS');
 
@@ -560,10 +562,13 @@ function parseWorkbook(wb) {
   const pre = sheetPRE ? parsePresupuesto(wb.Sheets[sheetPRE]) : null;
   const pool = sheetPOOL ? parsePool(wb.Sheets[sheetPOOL]) : null;
   const tes  = sheetTES  ? parseTesoreria(wb.Sheets[sheetTES])  : null;
+  const provData = sheetPROV ? parsePorProveedor(wb.Sheets[sheetPROV]) : null;
+  const prov      = provData ? provData.prov  : null;
+  const provIndex = provData ? provData.index : {};
 
   const canales = [...new Set(pyg.map(r=>r.canal).filter(Boolean))].sort();
 
-  return {pyg, pre, pdc, canales, balanceRows, pool, tes};
+  return {pyg, pre, pdc, canales, balanceRows, pool, tes, prov, provIndex};
 }
 
 // Parser específico para Balance: cuentas 1-5, sin invertir signo.
@@ -717,6 +722,90 @@ function normalizeCanal(s) {
   if (!s) return 'ESTRUCTURA';
   return String(s).trim().toUpperCase()
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+// =============================================================
+// MAPEO CENTRO DE COSTE (POR PROVEEDOR) -> CANAL (SUMAS Y SALDOS)
+// -------------------------------------------------------------
+// En la pestaña POR PROVEEDOR el centro viene como número (CENTRO_COSTE_1)
+// y en SUMAS Y SALDOS como nombre de canal. Esta es la correspondencia.
+// Inferida y verificada cruzando las cuentas de compras (600/602/607/608).
+// >>> Si A3 dice otra cosa, basta cambiar este bloque. <<<
+const CC_MAP = {
+  '1': 'ESTRUCTURA',
+  '2': 'BODEGA',
+  '3': 'PRODUCCION',
+  '4': 'BINIFADET',
+  '5': 'TIENDA',
+  '6': 'TAMARINDOS',
+  '7': 'TAMARINDOS BAR',
+  '8': 'TIRANT'
+};
+function centroToCanal(v) {
+  if (v == null || v === '') return null;
+  const k = String(v).trim().replace(/\.0$/, '');
+  return CC_MAP[k] || normalizeCanal(k); // si no está mapeado, intenta usar el valor tal cual normalizado
+}
+
+// Parser de la pestaña POR PROVEEDOR -> agrega por cuenta x canal x proveedor,
+// repartiendo la Base imponible por MES de fecha de factura.
+// Devuelve filas {cuenta, canal, proveedor, mensual[12], total} y un índice
+// 'cuenta|canal' -> true para saber rápido qué centros tienen detalle.
+function parsePorProveedor(ws) {
+  const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:null});
+  // Localiza la fila de cabecera (contiene CUENTA y BASE IMPONIBLE)
+  let hi = -1;
+  for (let i = 0; i < Math.min(rows.length, 8); i++) {
+    const r = (rows[i]||[]).map(v => v ? String(v).toUpperCase().trim() : '');
+    if (r.includes('CUENTA') && r.some(h => h.startsWith('BASE'))) { hi = i; break; }
+  }
+  if (hi < 0) return null;
+  const H = rows[hi].map(v => v ? String(v).toUpperCase().trim() : '');
+  const idxCuenta = H.indexOf('CUENTA');
+  const idxProv   = H.findIndex(h => h.includes('NOMBRE') && h.includes('PROVEEDOR'));
+  const idxCC     = H.indexOf('CENTRO_COSTE_1');
+  const idxFecha  = H.indexOf('FECHA');
+  const idxBase   = H.findIndex(h => h.startsWith('BASE'));
+  if (idxCuenta < 0 || idxBase < 0) return null;
+
+  const mesDe = (val) => {
+    if (val == null) return null;
+    if (typeof val === 'number') { // serial Excel -> mes
+      const d = new Date(Date.UTC(1899,11,30) + val*86400000);
+      return d.getUTCMonth(); // 0..11
+    }
+    const s = String(val).trim();
+    const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/); // DD/MM/AAAA
+    if (m) return Math.min(11, Math.max(0, parseInt(m[2],10)-1));
+    const d = new Date(s);
+    return isNaN(d) ? null : d.getMonth();
+  };
+
+  const map = {}; // clave cuenta|canal|prov
+  const index = {};
+  for (let r = hi+1; r < rows.length; r++) {
+    const row = rows[r];
+    if (!row) continue;
+    const c0 = row[0] ? String(row[0]).trim() : '';
+    if (c0.toUpperCase().startsWith('FECHA')) continue; // fila separadora de bucket
+    const cuenta = row[idxCuenta] != null ? String(row[idxCuenta]).trim().replace(/\.0$/, '') : '';
+    if (!cuenta) continue;
+    const base = parseFloat(String(row[idxBase]).replace(',', '.'));
+    if (isNaN(base)) continue;
+    const canal = centroToCanal(idxCC >= 0 ? row[idxCC] : null) || 'ESTRUCTURA';
+    const prov  = idxProv >= 0 && row[idxProv] ? String(row[idxProv]).trim() : '(sin proveedor)';
+    let mi = idxFecha >= 0 ? mesDe(row[idxFecha]) : null;
+    if (mi == null) mi = 0; // si no hay fecha, lo dejamos en enero (no debería pasar)
+
+    const key = cuenta + '|' + canal + '|' + prov;
+    if (!map[key]) map[key] = {cuenta, canal, proveedor: prov, mensual: new Array(12).fill(0), total: 0};
+    map[key].mensual[mi] += base;
+    map[key].total += base;
+    index[cuenta + '|' + canal] = true;
+  }
+  const prov = Object.values(map);
+  prov.forEach(p => { p.total = p.mensual.reduce((a,b)=>a+b,0); });
+  return {prov, index};
 }
 
 // Encuentra la fila de cabeceras (la que contiene 'ENERO' / 'Enero' / 'enero')
@@ -947,6 +1036,7 @@ function setDetalle(d, btn) {
   // al cambiar de detalle, colapsar todo lo expandido para evitar estados inconsistentes
   expanded = {};
   expandedCta = {};
+  expandedCC = {};
   buildPYGTable();
 }
 
@@ -1383,10 +1473,44 @@ function buildCentrosRows(cuenta, favDir, indent) {
   canalesCta.forEach(c => {
     const valsR = porCanal[c];
     const valsP = hayPresup ? (porCanalP[c] || new Array(12).fill(0)) : null;
-    html += `<tr class="r-det">
-      <td ${sty}>↳ ${c}</td>
+    // ¿Hay detalle de proveedor para esta cuenta y este centro?
+    const tieneProv = !!(D.provIndex && D.provIndex[cuenta + '|' + c]);
+    const ccKey = cuenta + '|' + c;
+    const isOpenCC = !!expandedCC[ccKey];
+    const caret = tieneProv ? `<span class="expand-btn">${isOpenCC ? '▼' : '▶'}</span>` : '<span class="expand-btn"></span>';
+    const cEsc = String(c).replace(/'/g,"\\'");
+    const click = tieneProv ? ` onclick="toggleCentro('${String(cuenta).replace(/'/g,"\\'")}','${cEsc}')" style="cursor:pointer"` : '';
+    const styClick = tieneProv ? sty.replace('font-style:italic', 'font-style:italic;cursor:pointer') : sty;
+    html += `<tr class="r-det"${click}>
+      <td ${styClick}>${caret}↳ ${c}</td>
       ${buildTotalCells(valsR, valsP, favDir)}
       ${valsR.map((v,i)=>cell(v, valsP?valsP[i]:null, favDir, {dim: i>=mesHasta})).join('')}
+    </tr>`;
+    if (tieneProv && isOpenCC) {
+      html += buildProveedoresRows(cuenta, c, favDir, indent + 18);
+    }
+  });
+  return html;
+}
+
+// Construye filas de detalle por PROVEEDOR de una cuenta y un centro (drill-down nivel 4).
+// Reparte la Base imponible por mes de fecha de factura. No lleva presupuesto.
+function buildProveedoresRows(cuenta, canalC, favDir, indent) {
+  const sty = `style="text-align:left;position:sticky;left:0;background:#fbfbfc;padding-left:${indent}px;color:#8a8f98;font-size:11px"`;
+  if (!D.prov) return '';
+  const filas = D.prov
+    .filter(p => p.cuenta === cuenta && p.canal === canalC)
+    .filter(p => Math.abs(sumHasta(p.mensual, mesHasta)) > 0.01)
+    .sort((a,b) => Math.abs(sumHasta(b.mensual, mesHasta)) - Math.abs(sumHasta(a.mensual, mesHasta)));
+  if (filas.length === 0) {
+    return `<tr class="r-det"><td ${sty} colspan="17">— sin facturas en el periodo —</td></tr>`;
+  }
+  let html = '';
+  filas.forEach(p => {
+    html += `<tr class="r-det">
+      <td ${sty}>· ${p.proveedor}</td>
+      ${buildTotalCells(p.mensual, null, favDir)}
+      ${p.mensual.map((v,i)=>cell(v, null, favDir, {dim: i>=mesHasta})).join('')}
     </tr>`;
   });
   return html;
@@ -1510,13 +1634,26 @@ function toggleGrupo(grp, tipo) {
     // Buscar las cuentas de ese grupo en el dataset actual y cerrarlas
     const excl = canal === 'TODOS';
     const rows = aggregate(D.pyg, canal, excl);
-    rows.filter(r=>r.grupo===grp && r.tipo===tipo).forEach(r => { delete expandedCta[r.cuenta]; });
+    rows.filter(r=>r.grupo===grp && r.tipo===tipo).forEach(r => {
+      delete expandedCta[r.cuenta];
+      Object.keys(expandedCC).forEach(k => { if (k.startsWith(r.cuenta + '|')) delete expandedCC[k]; });
+    });
   }
   buildPYGTable();
 }
 
 function toggleCuenta(cuenta) {
   expandedCta[cuenta] = !expandedCta[cuenta];
+  // Si colapsamos la cuenta, cerramos también los centros que tuviera abiertos
+  if (!expandedCta[cuenta]) {
+    Object.keys(expandedCC).forEach(k => { if (k.startsWith(cuenta + '|')) delete expandedCC[k]; });
+  }
+  buildPYGTable();
+}
+
+function toggleCentro(cuenta, canalC) {
+  const k = cuenta + '|' + canalC;
+  expandedCC[k] = !expandedCC[k];
   buildPYGTable();
 }
 
@@ -2218,7 +2355,7 @@ function resetApp() {
   D=null;
   document.getElementById('app-screen').style.display='none';
   Object.values(charts).forEach(c=>c.destroy());
-  charts={};canal='TODOS';detalle='grupo';vistaPyg='mensual';modoPresup='real';mesHasta=12;expanded={};expandedCta={};
+  charts={};canal='TODOS';detalle='grupo';vistaPyg='mensual';modoPresup='real';mesHasta=12;expanded={};expandedCta={};expandedCC={};
   const sel = document.getElementById('sel-mes'); if (sel) sel.value = '12';
   autoLoad();
 }
