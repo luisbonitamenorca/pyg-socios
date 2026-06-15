@@ -254,6 +254,12 @@ table.pyg tr:hover td{filter:brightness(.97)}
           <option value="12" selected>Diciembre</option>
         </select>
       </div>
+      <div class="toolbar-group" style="margin-left:auto">
+        <button onclick="exportExcel()" title="Descargar el detalle en Excel (cuenta · centro · proveedor)"
+          style="display:flex;align-items:center;gap:6px;border:1px solid var(--border-med);background:#0f6e56;color:#fff;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer">
+          ↓ Descargar Excel
+        </button>
+      </div>
     </div>
 
     <!-- TABS -->
@@ -1667,6 +1673,80 @@ function toggleCentro(cuenta, canalC) {
   const k = cuenta + '|' + canalC;
   expandedCC[k] = !expandedCC[k];
   buildPYGTable();
+}
+
+// =============================================================
+// EXPORTAR A EXCEL — detalle del PyG por cuenta · centro · proveedor
+// Genera el libro en el navegador con la librería XLSX ya cargada.
+// No hay backend ni claves: usa los datos ya cargados en memoria (D).
+// =============================================================
+function expRound2(v){ return Math.round((Number(v)||0)*100)/100; }
+
+function expStyleSheet(ws, header){
+  const wide = new Set(['Grupo','Cuenta','Proveedor']);
+  ws['!cols'] = header.map(h => ({ wch: wide.has(h) ? 32 : (String(h).length > 9 ? 13 : 11) }));
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  ws['!autofilter'] = { ref: ws['!ref'] };
+  for (let R = 1; R <= range.e.r; R++) {
+    for (let C = 0; C <= range.e.c; C++) {
+      const cell = ws[XLSX.utils.encode_cell({ r: R, c: C })];
+      if (cell && typeof cell.v === 'number') cell.z = '#,##0.00';
+    }
+  }
+}
+
+function exportExcel(){
+  if (!D || !D.pyg || !D.pyg.length) { alert('No hay datos cargados todavía.'); return; }
+  const MESES_TXT = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const mh = mesHasta;
+  const acumLabel = mh === 12 ? 'Total año' : 'Acum. Ene-' + MS[mh-1];
+  const tipoTxt = c => getTipo(c) === 'ingreso' ? 'Ingreso' : (getTipo(c) === 'gasto' ? 'Gasto' : 'Otro');
+
+  // descripción de cuenta a partir del PyG y del Balance (cubre también inmovilizado), con PDC de respaldo
+  const descByCuenta = {};
+  D.pyg.forEach(r => { if (!descByCuenta[r.cuenta]) descByCuenta[r.cuenta] = r.desc; });
+  if (D.balanceRows) D.balanceRows.forEach(r => { if (!descByCuenta[r.cuenta]) descByCuenta[r.cuenta] = r.desc; });
+  const descDe = c => descByCuenta[c] || (D.pdc[c] ? (D.pdc[c].desc || c) : c);
+
+  // ---- Hoja 1: PyG por cuenta y centro (origen: Sumas y Saldos; oficial y completo) ----
+  const head1 = ['Tipo','Grupo','Nº Cuenta','Cuenta','Centro de coste', ...MESES_TXT, 'Total año', acumLabel];
+  const rows1 = [head1];
+  [...D.pyg].sort((a,b)=>{
+    const ta=getTipo(a.cuenta), tb=getTipo(b.cuenta);
+    if (ta!==tb) return ta==='ingreso'?-1:1;
+    if (a.cuenta!==b.cuenta) return String(a.cuenta).localeCompare(String(b.cuenta));
+    return String(a.canal).localeCompare(String(b.canal));
+  }).forEach(r=>{
+    rows1.push([ tipoTxt(r.cuenta), getGrupo(r.cuenta), r.cuenta, r.desc, r.canal,
+      ...r.mensual.map(expRound2), expRound2(r.mensual.reduce((a,b)=>a+b,0)), expRound2(sumHasta(r.mensual, mh)) ]);
+  });
+
+  // ---- Hoja 2: Detalle por proveedor (origen: Por proveedor; por fecha de factura) ----
+  let rows2 = null, head2 = null;
+  if (D.prov && D.prov.length) {
+    head2 = ['Tipo','Grupo','Nº Cuenta','Cuenta','Centro de coste','Proveedor', ...MESES_TXT, 'Total año', acumLabel];
+    rows2 = [head2];
+    [...D.prov].sort((a,b)=>{
+      if (a.cuenta!==b.cuenta) return String(a.cuenta).localeCompare(String(b.cuenta));
+      if (a.canal!==b.canal) return String(a.canal).localeCompare(String(b.canal));
+      return b.total - a.total;
+    }).forEach(p=>{
+      rows2.push([ tipoTxt(p.cuenta), getGrupo(p.cuenta), p.cuenta, descDe(p.cuenta), p.canal, p.proveedor,
+        ...p.mensual.map(expRound2), expRound2(p.mensual.reduce((a,b)=>a+b,0)), expRound2(sumHasta(p.mensual, mh)) ]);
+    });
+  }
+
+  const wb = XLSX.utils.book_new();
+  const ws1 = XLSX.utils.aoa_to_sheet(rows1);
+  expStyleSheet(ws1, head1);
+  XLSX.utils.book_append_sheet(wb, ws1, 'PyG cuenta-centro');
+  if (rows2) {
+    const ws2 = XLSX.utils.aoa_to_sheet(rows2);
+    expStyleSheet(ws2, head2);
+    XLSX.utils.book_append_sheet(wb, ws2, 'Detalle proveedor');
+  }
+  const fecha = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `PyG_Bonita_detalle_${fecha}.xlsx`);
 }
 
 // Mantenemos toggleExpand por si alguna versión antigua lo invoca (compat.)
