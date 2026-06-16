@@ -675,29 +675,47 @@ function parsePool(ws) {
 
 function parseTesoreria(ws) {
   const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:null});
-  // Cabecera: CONCEPTO, VENCIMIENTO, IMPORTE
+  // Localiza la fila de cabecera (la que contiene "CONCEPTO").
   let hi = 0;
-  for (let i = 0; i < Math.min(rows.length, 5); i++) {
-    if (rows[i] && rows[i][0] && String(rows[i][0]).toUpperCase().includes('CONCEPTO')) { hi = i; break; }
+  for (let i = 0; i < Math.min(rows.length, 6); i++) {
+    if (rows[i] && rows[i].some(c => c != null && String(c).toUpperCase().includes('CONCEPTO'))) { hi = i; break; }
   }
+  // Mapeo de columnas por NOMBRE de cabecera (no por posición fija).
+  // Soporta el nuevo layout: TIPO | CONCEPTO | VENCIMIENTO | IMPORTE
+  // y también el antiguo (sin TIPO) por compatibilidad.
+  const header = (rows[hi] || []).map(c => c != null ? String(c).toUpperCase().trim() : '');
+  const idxTipo     = header.findIndex(h => h.includes('TIPO'));
+  const idxConcepto = header.findIndex(h => h.includes('CONCEPTO'));
+  const idxVenc     = header.findIndex(h => h.includes('VENC'));
+  const idxImporte  = header.findIndex(h => h.includes('IMPORTE'));
+  const cIdx = idxConcepto >= 0 ? idxConcepto : 0;
+  const vIdx = idxVenc     >= 0 ? idxVenc     : cIdx + 1;
+  const iIdx = idxImporte  >= 0 ? idxImporte  : cIdx + 2;
+
   const items = [];
   let balance = null;
+  let tipoActual = null; // se arrastra hacia abajo por si TIPO solo aparece al inicio del bloque
   for (let r = hi+1; r < rows.length; r++) {
     const row = rows[r];
     if (!row) continue;
-    const concepto = row[0];
-    const venc = row[1];
-    const imp = row[2];
-    if (concepto == null && imp == null) continue;
+    if (idxTipo >= 0 && row[idxTipo] != null && String(row[idxTipo]).trim() !== '') {
+      tipoActual = String(row[idxTipo]).toUpperCase();
+    }
+    const concepto = row[cIdx];
+    const venc = row[vIdx];
+    const imp  = row[iIdx];
     if (concepto == null) continue;
     const conceptoStr = String(concepto).trim();
     if (!conceptoStr) continue;
-    // Detectar línea de balance global
+    // Línea de balance global (se ignora la dirección)
     if (conceptoStr.toUpperCase().includes('BALANCE')) {
       balance = { concepto: conceptoStr, venc, importe: parseFloat(imp) || 0 };
       continue;
     }
+    // Dirección según la columna TIPO: entrada suma, salida resta.
+    const dir = (tipoActual && tipoActual.includes('SALIDA')) ? 'salida' : 'entrada';
     items.push({
+      tipo: dir,
       concepto: conceptoStr,
       venc: venc != null ? venc : '',
       importe: imp != null ? (parseFloat(imp) || 0) : null
@@ -2251,18 +2269,26 @@ function buildTesoreria() {
     return;
   }
 
-  // Clasificación de los items por concepto
+  // Clasificación según la columna TIPO del Excel (entrada/salida).
+  // - Salidas de caja            -> Pagos previstos
+  // - Entradas sin vencimiento   -> Saldos disponibles (liquidez actual)
+  // - Entradas con vencimiento   -> Cobros previstos (entrarán en el futuro)
   const saldos = [];
   const cobrosFinal = [];
   const pagosFinal = [];
+  const tieneVenc = (it) => it.venc != null && String(it.venc).trim() !== '';
   tes.items.forEach(it => {
-    const c = it.concepto.toLowerCase();
-    if (c.includes('saldo') || c.includes('confirming') || (c.includes('póliza') && !c.includes('cuota'))) {
-      saldos.push(it);
-    } else if (c.includes('cobro') || c.includes('giro')) {
-      cobrosFinal.push(it);
-    } else {
+    if (it.tipo === 'salida') {
       pagosFinal.push(it);
+      return;
+    }
+    // Entrada de caja: separamos liquidez actual de cobros futuros.
+    const c = it.concepto.toLowerCase();
+    const esSaldo = c.includes('saldo') || c.includes('disponible') || c.includes('confirming');
+    if (esSaldo || !tieneVenc(it)) {
+      saldos.push(it);
+    } else {
+      cobrosFinal.push(it);
     }
   });
 
