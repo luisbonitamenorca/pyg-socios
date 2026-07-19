@@ -7,138 +7,214 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
+/* ═══════════════════════════════════════════════════════════
+   Sistema de diseño unificado — mismo lenguaje que Ratios Food Cost
+   ═══════════════════════════════════════════════════════════ */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#f5f5f2;--surface:#fff;--border:rgba(0,0,0,0.07);--border-med:rgba(0,0,0,0.13);
-  --text:#1a1a18;--muted:#6b6b68;--green:#1D9E75;--green-bg:#e8f7f2;
-  --red:#C0392B;--red-bg:#fdf0ee;--blue:#185FA5;--blue-bg:#e8f2fc;
-  --amber:#9A6200;--amber-bg:#fef8ec;--radius:10px;
-}
-body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:13px;min-height:100vh}
+  /* Superficies */
+  --bg:#f8f8f6;--surface:#fff;--panel:#f3f3f0;--hdr:#fafaf8;
+  --border:#e0e0e0;--border-med:#d6d6d0;
+  --text:#1a1a1a;--muted:#888;
 
-/* UPLOAD */
-#upload-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:2rem;gap:0}
-.brand{font-size:20px;font-weight:700;letter-spacing:-.5px;margin-bottom:6px}
+  /* Paleta Ratios */
+  --green:#1D9E75;--green-dark:#085041;--green-bg:#E1F5EE;
+  --blue:#185FA5;--blue-bg:#E6F1FB;
+  --purple:#534AB7;--purple-bg:#EEEDFE;
+  --amber:#BA7517;--amber-bg:#FAEEDA;
+  --red:#A32D2D;--red-bg:#FCEBEB;
+  --coral:#993C1D;--coral-bg:#FAECE7;
+
+  /* Tonos funcionales de la tabla PyG */
+  --acc-strong:#d9ede5;   /* cabecera columnas acumuladas */
+  --acc:#eaf5f0;          /* cabecera diferencia / filas de grupo */
+  --acc-cell:#eef7f3;     /* columna acumulada en celdas */
+  --acc-total:#cfe9de;    /* celda acumulada en filas de total */
+
+  --radius:8px;--radius-lg:10px;
+  --shadow:0 1px 3px rgba(0,0,0,.06);
+}
+body{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);font-size:13px;min-height:100vh}
+
+/* ── LOGIN ─────────────────────────────────────────────── */
+#login-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:2rem}
+.brand{font-size:18px;font-weight:500;letter-spacing:-.2px;margin-bottom:4px}
 .brand span{color:var(--green)}
-.brand-sub{font-size:12px;color:var(--muted);margin-bottom:28px}
-.upload-card{background:var(--surface);border:1px solid var(--border-med);border-radius:var(--radius);padding:2.5rem;max-width:440px;width:100%;text-align:center}
-.upload-card h2{font-size:16px;font-weight:600;margin-bottom:8px}
+.brand-sub{font-size:12px;color:var(--muted);margin-bottom:24px}
+.login-card{background:var(--surface);border:0.5px solid var(--border);border-radius:12px;padding:32px 36px;max-width:380px;width:100%;box-shadow:0 4px 24px rgba(0,0,0,.08);text-align:left}
+.login-card h2{font-size:15px;font-weight:500;margin-bottom:4px}
+.login-card p{font-size:11px;color:var(--muted);margin-bottom:20px;text-transform:uppercase;letter-spacing:.05em}
+.login-input{width:100%;height:38px;border:0.5px solid var(--border);border-radius:7px;padding:0 12px;font-size:14px;margin-bottom:12px;background:var(--surface);font-family:inherit}
+.login-input:focus{outline:none;border-color:var(--green)}
+.login-btn{width:100%;height:38px;background:var(--green);color:#fff;border:none;border-radius:7px;font-size:14px;font-weight:500;cursor:pointer;transition:background .15s}
+.login-btn:hover{background:var(--green-dark)}
+.login-error{font-size:12px;color:var(--red);margin-top:8px;min-height:18px;text-align:center}
+
+/* ── PANTALLA SIN DATOS ────────────────────────────────── */
+#upload-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:2rem;gap:0}
+.upload-card{background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:2.5rem;max-width:440px;width:100%;text-align:center;box-shadow:var(--shadow)}
+.upload-card h2{font-size:15px;font-weight:500;margin-bottom:8px}
 .upload-card p{font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:20px}
-.drop-zone{border:2px dashed var(--border-med);border-radius:8px;padding:2rem 1.5rem;cursor:pointer;transition:.2s;margin-bottom:14px}
+.drop-zone{border:2px dashed #c8c8c8;border-radius:var(--radius-lg);padding:2rem 1.5rem;cursor:pointer;transition:.2s;margin-bottom:14px;background:var(--hdr)}
 .drop-zone:hover,.drop-zone.drag{border-color:var(--green);background:var(--green-bg)}
 .drop-zone p{color:var(--muted);font-size:13px;margin:0}
 .drop-zone strong{color:var(--green)}
 input[type=file]{display:none}
 .note{font-size:11px;color:var(--muted);line-height:1.6}
-.note code{background:var(--bg);padding:1px 5px;border-radius:3px;font-size:11px}
+.note code{background:var(--panel);padding:1px 5px;border-radius:3px;font-size:11px}
 
-/* APP */
+/* ── LAYOUT: barra lateral + columna principal ─────────── */
 #app-screen{display:none}
-.topbar{background:var(--surface);border-bottom:1px solid var(--border);height:50px;padding:0 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
-.topbar-brand{font-weight:700;font-size:14px;letter-spacing:-.3px}
-.topbar-brand span{color:var(--green)}
-.topbar-right{display:flex;align-items:center;gap:10px}
-.file-pill{background:var(--green-bg);color:var(--green);font-size:11px;font-weight:500;padding:3px 10px;border-radius:20px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.btn-sm{background:none;border:1px solid var(--border-med);border-radius:6px;padding:4px 12px;font-size:12px;color:var(--muted);cursor:pointer}
-.btn-sm:hover{background:var(--bg)}
+#app-screen.on{display:flex;align-items:flex-start;min-height:100vh}
 
-.content{padding:16px 20px;max-width:1400px;margin:0 auto}
+.side-nav{
+  width:200px;flex-shrink:0;position:sticky;top:0;height:100vh;overflow-y:auto;
+  background:#fdfdfc;border-right:0.5px solid var(--border);
+  padding:18px 10px 18px 14px;display:flex;flex-direction:column;
+}
+.side-brand{padding:0 4px 14px;border-bottom:0.5px solid var(--border);margin-bottom:12px}
+.app-title{font-size:18px;font-weight:500;letter-spacing:-.2px}
+.app-title span{color:var(--green)}
+.app-subtitle{font-size:11px;color:var(--muted);margin-top:2px;line-height:1.45}
+.side-badge{margin-top:8px;display:inline-block;padding:4px 10px;background:var(--green);color:#fff;font-size:11px;font-weight:500;border-radius:4px;letter-spacing:.3px}
+.side-foot{margin-top:auto;padding-top:14px;border-top:0.5px solid var(--border);display:flex;flex-direction:column;gap:8px}
+.side-status{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--muted);padding:0 4px;line-height:1.3}
+.side-version{font-size:10px;color:#aaa;padding:0 4px}
 
-/* TOOLBAR */
-.toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px}
-.toolbar-group{display:flex;align-items:center;gap:6px}
-.toolbar-label{font-size:11px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
-.seg{display:flex;border:1px solid var(--border-med);border-radius:6px;overflow:hidden}
-.seg button{padding:5px 12px;font-size:12px;border:none;background:none;cursor:pointer;color:var(--muted);transition:.15s;white-space:nowrap}
-.seg button.active{background:var(--green);color:#fff;font-weight:500}
-.seg button:hover:not(.active){background:var(--bg)}
-.sep{width:1px;background:var(--border-med);align-self:stretch}
+.main-col{flex:1;min-width:0;padding:0 16px 40px}
+.main-inner{max-width:1400px;margin:0 auto}
 
-/* TABS */
-.tabs{display:flex;gap:1px;margin-bottom:16px;border-bottom:1px solid var(--border)}
-.tab{padding:8px 16px;font-size:13px;color:var(--muted);cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;margin-bottom:-1px;transition:.15s}
-.tab.active{color:var(--text);font-weight:500;border-bottom-color:var(--green)}
-.tab:hover:not(.active){color:var(--text)}
+.app-header{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap;padding:14px 0 12px;border-bottom:0.5px solid var(--border)}
+.header-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.header-label{font-size:11px;color:var(--muted)}
+.content{padding-top:16px}
+
+/* ── MENÚ VERTICAL (pestañas) ──────────────────────────── */
+.tabs{display:flex;flex-direction:column;gap:1px}
+.tab{
+  padding:8px 10px;border:none;background:none;cursor:pointer;color:var(--muted);
+  font-size:12px;font-family:inherit;text-align:left;width:100%;
+  border-left:3px solid transparent;border-radius:0 6px 6px 0;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  transition:color .15s,border-color .15s,background .15s;
+}
+.tab.active{color:var(--green);border-left-color:var(--green);background:rgba(29,158,117,.09);font-weight:500}
+.tab:hover:not(.active){color:var(--text);background:rgba(0,0,0,.04)}
 .section{display:none}
 .section.active{display:block}
 
-/* METRICS */
-.metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:14px}
-.metric{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px}
-.m-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}
-.m-value{font-size:21px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
-.m-delta{font-size:12px;margin-top:5px;font-weight:500}
+/* ── TOOLBAR / FILTROS ─────────────────────────────────── */
+.toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:14px}
+.toolbar-group{display:flex;align-items:center;gap:6px}
+.toolbar-label{font-size:10px;color:#aaa;font-weight:600;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
+.seg{display:flex;gap:3px;flex-wrap:wrap}
+.seg button{
+  padding:4px 10px;font-size:11px;font-family:inherit;cursor:pointer;white-space:nowrap;
+  border:0.5px solid var(--border);border-radius:4px;background:var(--panel);color:#555;transition:all .12s;
+}
+.seg button:hover:not(.active){border-color:#999;color:var(--text)}
+.seg button.active{background:var(--green);color:#fff;border-color:var(--green);font-weight:500}
+.sep{width:1px;background:var(--border);align-self:stretch;margin:2px 2px}
+
+/* ── MÉTRICAS ──────────────────────────────────────────── */
+.metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-bottom:14px}
+.metric{background:var(--panel);border-radius:var(--radius);padding:11px 13px}
+.m-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
+.m-value{font-size:20px;font-weight:500;font-variant-numeric:tabular-nums;line-height:1.2}
+.m-delta{font-size:10px;margin-top:2px;font-weight:500}
 .pos{color:var(--green)}.neg{color:var(--red)}.neu{color:var(--muted)}
 
-/* CHARTS */
+/* ── TARJETAS ──────────────────────────────────────────── */
+.card{background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:13px 14px;margin-bottom:12px}
+.card-title{font-size:10px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px}
+.card-sub{font-size:11px;color:#aaa;margin-bottom:10px}
 .chart-row{display:grid;grid-template-columns:3fr 2fr;gap:12px;margin-bottom:12px}
-.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:12px}
-.card-title{font-size:13px;font-weight:600;margin-bottom:2px}
-.card-sub{font-size:11px;color:var(--muted);margin-bottom:12px}
 .legend{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:10px}
-.leg-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted)}
-.leg-dot{width:10px;height:10px;border-radius:2px;flex-shrink:0}
+.leg-item{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--muted)}
+.leg-dot{width:9px;height:9px;border-radius:2px;flex-shrink:0}
 
-/* TABLE */
-.tbl-wrap{overflow-x:auto}
+/* ── TABLAS ────────────────────────────────────────────── */
+.tbl-wrap{border:0.5px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;overflow-x:auto}
 table.pyg{width:100%;border-collapse:collapse;font-size:12px}
-table.pyg th{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);padding:7px 8px;text-align:right;border-bottom:1px solid var(--border-med);background:var(--bg);white-space:nowrap;position:sticky;top:0;z-index:1}
-table.pyg th:first-child{text-align:left;min-width:180px;position:sticky;left:0;z-index:3;background:var(--bg)}
-table.pyg th:nth-child(2){background:#e8edf5;color:var(--blue)}
-table.pyg td{padding:5px 8px;text-align:right;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums;white-space:nowrap;vertical-align:top;line-height:1.3}
+table.pyg th{
+  font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);
+  padding:6px 7px;text-align:right;border-bottom:0.5px solid var(--border);background:var(--hdr);
+  white-space:nowrap;position:sticky;top:0;z-index:1;
+}
+table.pyg th:first-child{text-align:left;min-width:180px;position:sticky;left:0;z-index:3;background:var(--hdr)}
+table.pyg th:nth-child(2){background:var(--acc);color:var(--green-dark)}
+table.pyg td{padding:5px 7px;text-align:right;border-bottom:0.5px solid var(--border);font-variant-numeric:tabular-nums;white-space:nowrap;vertical-align:top;line-height:1.3}
 table.pyg td:first-child{text-align:left}
-table.pyg td:nth-child(2){background:#edf3f9;font-weight:600}
+table.pyg td:nth-child(2){background:var(--acc-cell);font-weight:500}
+table.pyg tr:last-child td{border-bottom:none}
 table.pyg tr.r-ing td{background:#f5fbf8}
 table.pyg tr.r-ing td:nth-child(2){background:#dff0e8}
 table.pyg tr.r-gto td{background:#fdfaf8}
 table.pyg tr.r-gto td:nth-child(2){background:#f5ede8}
-table.pyg tr.r-grp td{background:#f0f4fa;font-weight:600;color:var(--text)}
-table.pyg tr.r-det td{background:#fafafa}
-table.pyg tr.r-det td:nth-child(2){background:#f0f4fa}
-table.pyg tr.r-total td{font-weight:700;background:#edf3f9;border-top:1px solid var(--border-med)}
-table.pyg tr.r-total td:nth-child(2){background:#d8e6f3}
-table.pyg tr.r-result td{font-weight:700;background:#fffbea;border-top:2px solid #d4a017}
-table.pyg tr.r-result td:nth-child(2){background:#fff3c4}
-table.pyg tr:hover td{filter:brightness(.97)}
+table.pyg tr.r-grp td{background:var(--acc);font-weight:500;color:var(--text)}
+table.pyg tr.r-det td{background:var(--hdr)}
+table.pyg tr.r-det td:nth-child(2){background:var(--acc-cell)}
+table.pyg tr.r-total td{font-weight:500;background:var(--panel);border-top:0.5px solid var(--border-med)}
+table.pyg tr.r-total td:nth-child(2){background:var(--acc-total)}
+table.pyg tr.r-result td{font-weight:500;background:#fdf6e8;border-top:1.5px solid var(--amber)}
+table.pyg tr.r-result td:nth-child(2){background:#fbead0}
+table.pyg tr:hover td{filter:brightness(.975)}
 .dv-pos{color:var(--green);font-weight:500}
 .dv-neg{color:var(--red);font-weight:500}
 .expand-btn{cursor:pointer;user-select:none;color:var(--muted);font-size:10px;margin-right:4px;display:inline-block;width:12px}
 
-/* Loading */
-#loading{display:none;position:fixed;inset:0;background:rgba(255,255,255,.85);z-index:999;align-items:center;justify-content:center;flex-direction:column;gap:12px}
+/* ── BOTONES ───────────────────────────────────────────── */
+.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border:0.5px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:12px;font-family:inherit;cursor:pointer;white-space:nowrap;transition:background .12s}
+.btn:hover{background:var(--panel)}
+.btn-g{background:var(--green);color:#fff;border-color:var(--green);font-weight:500}
+.btn-g:hover{background:var(--green-dark);border-color:var(--green-dark)}
+.btn-sm{padding:4px 10px;font-size:11px;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius);color:#555;cursor:pointer;font-family:inherit}
+.btn-sm:hover{background:var(--panel);color:var(--text)}
+select,input[type=password],input[type=text]{font-family:inherit}
+.hdr-select{height:30px;font-size:12px;padding:0 9px;border:0.5px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);cursor:pointer}
+.hdr-select:focus{outline:none;border-color:var(--green)}
+
+/* ── CARGA ─────────────────────────────────────────────── */
+#loading{display:none;position:fixed;inset:0;background:rgba(248,248,246,.9);z-index:999;align-items:center;justify-content:center;flex-direction:column;gap:12px}
 #loading p{color:var(--muted);font-size:13px}
-.spinner{width:28px;height:28px;border:3px solid var(--border-med);border-top-color:var(--green);border-radius:50%;animation:spin .7s linear infinite}
+.spinner{width:28px;height:28px;border:3px solid var(--border);border-top-color:var(--green);border-radius:50%;animation:spin .7s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 
-@media(max-width:700px){
-  .metrics{grid-template-columns:repeat(2,1fr)}
-  .chart-row{grid-template-columns:1fr}
-}
-/* ADMIN MODAL */
-.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:200;align-items:center;justify-content:center}
+/* ── MODAL ADMIN ───────────────────────────────────────── */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;align-items:center;justify-content:center}
 .modal-overlay.open{display:flex}
-.modal{background:var(--surface);border-radius:var(--radius);padding:2rem;max-width:420px;width:90%;border:1px solid var(--border-med)}
-.modal h3{font-size:15px;font-weight:600;margin-bottom:6px}
+.modal{background:var(--surface);border-radius:var(--radius-lg);padding:20px;width:min(480px,94vw);border:0.5px solid var(--border);box-shadow:0 8px 32px rgba(0,0,0,.12)}
+.modal h3{font-size:15px;font-weight:500;margin-bottom:6px}
 .modal p{font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.6}
-.modal input[type=password],.modal input[type=file]{width:100%;border:1px solid var(--border-med);border-radius:6px;padding:8px 10px;font-size:13px;margin-bottom:10px;background:var(--bg)}
+.modal input[type=password]{width:100%;height:32px;border:0.5px solid var(--border);border-radius:var(--radius);padding:0 9px;font-size:12px;margin-bottom:10px;background:var(--surface)}
+.modal input[type=password]:focus{outline:none;border-color:var(--green)}
 .modal-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:6px}
-.btn-cancel{background:none;border:1px solid var(--border-med);border-radius:6px;padding:7px 16px;font-size:12px;cursor:pointer;color:var(--muted)}
-.btn-upload{background:var(--green);color:#fff;border:none;border-radius:6px;padding:7px 16px;font-size:12px;cursor:pointer;font-weight:500}
+.btn-cancel{background:none;border:0.5px solid var(--border);border-radius:var(--radius);padding:6px 14px;font-size:12px;cursor:pointer;color:var(--muted);font-family:inherit}
+.btn-cancel:hover{background:var(--panel)}
+.btn-upload{background:var(--green);color:#fff;border:none;border-radius:var(--radius);padding:6px 14px;font-size:12px;cursor:pointer;font-weight:500;font-family:inherit}
+.btn-upload:hover{background:var(--green-dark)}
 .btn-upload:disabled{opacity:.5;cursor:not-allowed}
 .status-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
 .status-dot.ok{background:var(--green)}
 .status-dot.loading{background:var(--amber)}
 .status-dot.err{background:var(--red)}
-/* LOGIN */
-#login-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:2rem}
-.login-card{background:var(--surface);border:1px solid var(--border-med);border-radius:var(--radius);padding:2.5rem;max-width:380px;width:100%;text-align:center}
-.login-card h2{font-size:17px;font-weight:600;margin-bottom:8px}
-.login-card p{font-size:12px;color:var(--muted);margin-bottom:20px}
-.login-input{width:100%;border:1px solid var(--border-med);border-radius:6px;padding:10px 12px;font-size:14px;margin-bottom:10px;background:var(--bg);text-align:center;letter-spacing:.1em}
-.login-input:focus{outline:none;border-color:var(--green)}
-.login-btn{width:100%;background:var(--green);color:#fff;border:none;border-radius:7px;padding:11px;font-size:14px;font-weight:500;cursor:pointer;transition:opacity .15s}
-.login-btn:hover{opacity:.88}
-.login-error{font-size:12px;color:var(--red);margin-top:8px;min-height:18px}
+
+/* ── RESPONSIVE ────────────────────────────────────────── */
+@media(max-width:900px){
+  #app-screen.on{flex-direction:column}
+  .side-nav{position:static;width:100%;height:auto;border-right:none;border-bottom:0.5px solid var(--border);padding:12px 12px 0}
+  .side-brand{border-bottom:none;padding-bottom:8px;margin-bottom:4px}
+  .side-foot{margin-top:8px;border-top:none;flex-direction:row;align-items:center;justify-content:space-between;padding-top:0}
+  .side-version{display:none}
+  .tabs{flex-direction:row;flex-wrap:nowrap;overflow-x:auto;gap:2px;padding-bottom:6px}
+  .tab{width:auto;border-left:none;border-bottom:2px solid transparent;border-radius:0}
+  .tab.active{border-left:none;border-bottom-color:var(--green);background:none}
+}
+@media(max-width:700px){
+  .metrics{grid-template-columns:repeat(2,1fr)}
+  .chart-row{grid-template-columns:1fr}
+  .app-header{justify-content:flex-start}
+}
 </style>
 </head>
 <body>
@@ -194,16 +270,56 @@ table.pyg tr:hover td{filter:brightness(.97)}
 
 <!-- APP -->
 <div id="app-screen">
-  <div class="topbar">
-    <div class="topbar-brand">Bonita <span>Menorca</span> <span style="font-weight:400;color:var(--muted);font-size:12px">— PyG Socios</span></div>
-    <div class="topbar-right">
-      <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)">
+
+  <!-- BARRA LATERAL -->
+  <aside class="side-nav">
+    <div class="side-brand">
+      <div class="app-title">Bonita <span>Menorca</span></div>
+      <div class="app-subtitle">Cuadro de Mando para Socios</div>
+      <div class="side-badge" id="side-periodo">Ene–Dic 2026</div>
+    </div>
+    <nav class="tabs">
+      <button class="tab active" onclick="showTab('resumen',this)">📊 Resumen</button>
+      <button class="tab" onclick="showTab('pyg',this)">📋 PyG completo</button>
+      <button class="tab" onclick="showTab('evolucion',this)">📈 Evolución mensual</button>
+      <button class="tab" onclick="showTab('balance',this)">⚖️ Balance</button>
+      <button class="tab" onclick="showTab('tesoreria',this)">💶 Tesorería</button>
+      <button class="tab" onclick="showTab('pool',this)">🏦 Pool bancario</button>
+    </nav>
+    <div class="side-foot">
+      <div class="side-status">
         <div class="status-dot ok" id="status-dot"></div>
         <span id="status-label">—</span>
       </div>
       <button class="btn-sm" onclick="openAdmin()">Actualizar datos</button>
+      <div class="side-version">PyG Socios · 2026</div>
     </div>
-  </div>
+  </aside>
+
+  <!-- COLUMNA PRINCIPAL -->
+  <div class="main-col"><div class="main-inner">
+
+  <!-- HEADER -->
+  <header class="app-header">
+    <div class="header-controls">
+      <label class="header-label" for="sel-mes">Mes hasta</label>
+      <select id="sel-mes" class="hdr-select" onchange="setMesHasta(this.value)">
+        <option value="1">Enero</option>
+        <option value="2">Febrero</option>
+        <option value="3">Marzo</option>
+        <option value="4">Abril</option>
+        <option value="5">Mayo</option>
+        <option value="6">Junio</option>
+        <option value="7">Julio</option>
+        <option value="8">Agosto</option>
+        <option value="9">Septiembre</option>
+        <option value="10">Octubre</option>
+        <option value="11">Noviembre</option>
+        <option value="12" selected>Diciembre</option>
+      </select>
+      <button class="btn btn-g" onclick="exportExcel()" title="Descargar el detalle en Excel (cuenta · centro · proveedor)">↓ Descargar Excel</button>
+    </div>
+  </header>
 
   <div class="content">
     <!-- TOOLBAR -->
@@ -236,40 +352,6 @@ table.pyg tr:hover td{filter:brightness(.97)}
           <button id="btn-cuenta" onclick="setDetalle('cuenta',this)">Por cuenta</button>
         </div>
       </div>
-      <div class="sep"></div>
-      <div class="toolbar-group">
-        <span class="toolbar-label">Mes hasta</span>
-        <select id="sel-mes" onchange="setMesHasta(this.value)" style="border:1px solid var(--border-med);border-radius:6px;padding:5px 10px;font-size:12px;background:var(--surface);cursor:pointer">
-          <option value="1">Enero</option>
-          <option value="2">Febrero</option>
-          <option value="3">Marzo</option>
-          <option value="4">Abril</option>
-          <option value="5">Mayo</option>
-          <option value="6">Junio</option>
-          <option value="7">Julio</option>
-          <option value="8">Agosto</option>
-          <option value="9">Septiembre</option>
-          <option value="10">Octubre</option>
-          <option value="11">Noviembre</option>
-          <option value="12" selected>Diciembre</option>
-        </select>
-      </div>
-      <div class="toolbar-group" style="margin-left:auto">
-        <button onclick="exportExcel()" title="Descargar el detalle en Excel (cuenta · centro · proveedor)"
-          style="display:flex;align-items:center;gap:6px;border:1px solid var(--border-med);background:#0f6e56;color:#fff;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer">
-          ↓ Descargar Excel
-        </button>
-      </div>
-    </div>
-
-    <!-- TABS -->
-    <div class="tabs">
-      <button class="tab active" onclick="showTab('resumen',this)">Resumen</button>
-      <button class="tab" onclick="showTab('pyg',this)">PyG completo</button>
-      <button class="tab" onclick="showTab('evolucion',this)">Evolución mensual</button>
-      <button class="tab" onclick="showTab('balance',this)">Balance</button>
-      <button class="tab" onclick="showTab('tesoreria',this)">Tesorería</button>
-      <button class="tab" onclick="showTab('pool',this)">Pool bancario</button>
     </div>
 
     <!-- RESUMEN -->
@@ -280,7 +362,7 @@ table.pyg tr:hover td{filter:brightness(.97)}
         <div class="card-sub">Real vs Presupuesto</div>
         <div class="legend">
           <div class="leg-item"><div class="leg-dot" style="background:#1D9E75"></div>Ingresos real</div>
-          <div class="leg-item"><div class="leg-dot" style="background:#C0392B"></div>Gastos real</div>
+          <div class="leg-item"><div class="leg-dot" style="background:#A32D2D"></div>Gastos real</div>
           <div class="leg-item"><div class="leg-dot" style="background:#B5D4F4;border:1px dashed #185FA5"></div>Ingresos presup.</div>
         </div>
         <div style="position:relative;height:220px"><canvas id="c-overview" role="img" aria-label="Ingresos y gastos mensuales"></canvas></div>
@@ -304,7 +386,7 @@ table.pyg tr:hover td{filter:brightness(.97)}
         <div class="card-sub">Resultado neto cada mes y acumulado</div>
         <div class="legend">
           <div class="leg-item"><div class="leg-dot" style="background:#1D9E75"></div>Resultado real</div>
-          <div class="leg-item"><div class="leg-dot" style="background:#FAC775;border:1px dashed #9A6200"></div>Resultado presup.</div>
+          <div class="leg-item"><div class="leg-dot" style="background:#FAC775;border:1px dashed #BA7517"></div>Resultado presup.</div>
         </div>
         <div style="position:relative;height:240px"><canvas id="c-resultado" role="img" aria-label="Resultado mensual"></canvas></div>
       </div>
@@ -378,8 +460,10 @@ table.pyg tr:hover td{filter:brightness(.97)}
       </div>
       <div id="pool-note" style="font-size:11px;color:var(--muted);text-align:right;margin-top:4px"></div>
     </div>
-  </div>
-</div>
+  </div><!-- /content -->
+
+  </div></div><!-- /main-inner /main-col -->
+</div><!-- /app-screen -->
 
 <script>
 const MESES = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
@@ -453,15 +537,16 @@ function processWorkbook(buffer, source) {
     D = parseWorkbook(wb);
     D.filename = source;
     document.getElementById('upload-screen').style.display = 'none';
-    document.getElementById('app-screen').style.display = 'block';
+    document.getElementById('app-screen').classList.add('on');
     buildToolbar();
+    updatePeriodoBadge();
     refresh();
     const now = new Date();
     setStatus('ok', `Actualizado ${now.toLocaleDateString('es-ES')} ${now.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}`);
   } catch(err) {
     // No bloquear con alert — mostrar la pantalla de upload con un mensaje claro
     console.error('Error procesando workbook:', err);
-    document.getElementById('app-screen').style.display = 'none';
+    document.getElementById('app-screen').classList.remove('on');
     const us = document.getElementById('upload-screen');
     us.style.display = 'flex';
     const card = us.querySelector('.upload-card');
@@ -1067,6 +1152,7 @@ function setDetalle(d, btn) {
 
 function setMesHasta(m) {
   mesHasta = parseInt(m, 10) || 12;
+  updatePeriodoBadge();
   refresh();
   // Si la pestaña Balance está activa, también la re-renderizamos (depende del mes)
   const balActive = document.getElementById('tab-balance');
@@ -1074,6 +1160,11 @@ function setMesHasta(m) {
 }
 
 // Suma los primeros `n` meses de un array mensual (n = mesHasta)
+function updatePeriodoBadge() {
+  const el = document.getElementById('side-periodo');
+  if (el) el.textContent = mesHasta === 1 ? 'Enero 2026' : `Ene–${MS[mesHasta-1]} 2026`;
+}
+
 function sumHasta(arr, n) {
   if (!arr) return 0;
   let s = 0;
@@ -1089,14 +1180,9 @@ function showTab(id, btn) {
   // Las pestañas Balance/Tesorería/Pool no usan los filtros de Canal/Vista/Modo/Detalle del PyG
   // (sólo Mes hasta es relevante en Balance). Ocultamos los grupos para no confundir.
   const isPyG = (id === 'resumen' || id === 'pyg' || id === 'evolucion');
+  // "Mes hasta" y la descarga viven en la cabecera y siempre están visibles.
   const tb = document.querySelector('.toolbar');
-  if (tb) {
-    Array.from(tb.children).forEach(child => {
-      // Mantener visible el grupo "Mes hasta" (contiene un <select> con id sel-mes)
-      const hasMes = child.querySelector && child.querySelector('#sel-mes');
-      child.style.display = (isPyG || hasMes) ? '' : 'none';
-    });
-  }
+  if (tb) tb.style.display = isPyG ? '' : 'none';
   // Render lazy de las pestañas nuevas (siempre re-render por si cambió mesHasta)
   if (id === 'balance')   buildBalance();
   if (id === 'tesoreria') buildTesoreria();
@@ -1210,7 +1296,7 @@ function buildResumenCharts(rows, rowsP) {
     type:'bar',
     data:{labels:MS,datasets:[
       {label:'Ingresos real',data:ingM,backgroundColor:'rgba(29,158,117,0.7)',borderRadius:3},
-      {label:'Gastos real',data:gtoM,backgroundColor:'rgba(192,57,43,0.6)',borderRadius:3},
+      {label:'Gastos real',data:gtoM,backgroundColor:'rgba(163,45,45,0.6)',borderRadius:3},
       ...(ingPMChart?[{type:'line',label:'Ingresos presup.',data:ingPMChart,borderColor:'#185FA5',borderDash:[4,3],backgroundColor:'transparent',pointRadius:3,tension:.3}]:[])
     ]},
     options:{...baseOpts,plugins:{legend:{display:false}}}
@@ -1260,10 +1346,10 @@ function buildResumenCharts(rows, rowsP) {
 
   let html = `<thead><tr>
     <th style="text-align:left;position:sticky;left:0;background:var(--bg);min-width:160px"></th>
-    <th style="background:#dfeaf7;color:var(--blue);font-weight:700">REAL ENE-${MS[mesHasta-1].toUpperCase()}</th>
-    <th style="background:#dfeaf7;color:var(--blue);font-weight:700">PPTO ENE-${MS[mesHasta-1].toUpperCase()}</th>
-    <th style="background:#e8edf5;color:var(--blue);font-weight:700">DIFERENCIA</th>
-    <th style="background:#e8edf5;color:var(--blue);font-weight:700">VARIACIÓN %</th>
+    <th style="background:var(--acc-strong);color:var(--green-dark);font-weight:600">REAL ENE-${MS[mesHasta-1].toUpperCase()}</th>
+    <th style="background:var(--acc-strong);color:var(--green-dark);font-weight:600">PPTO ENE-${MS[mesHasta-1].toUpperCase()}</th>
+    <th style="background:var(--acc);color:var(--green-dark);font-weight:600">DIFERENCIA</th>
+    <th style="background:var(--acc);color:var(--green-dark);font-weight:600">VARIACIÓN %</th>
     ${MS.map((m,i)=>`<th style="${i>=mesHasta?'opacity:.45':''}">${m}</th>`).join('')}
   </tr></thead><tbody>`;
 
@@ -1383,10 +1469,10 @@ function buildPYGTable(rows, rowsP) {
   const monthLabel = MS[mesHasta-1].toUpperCase();
   let html = `<thead><tr>
     <th style="text-align:left;min-width:240px;position:sticky;left:0;z-index:2;background:var(--bg)">${detalle==='grupo'?'Grupo':'Cuenta'}</th>
-    <th style="background:#dfeaf7;color:var(--blue);font-weight:700">REAL ENE-${monthLabel}</th>
-    <th style="background:#dfeaf7;color:var(--blue);font-weight:700">PPTO ENE-${monthLabel}</th>
-    <th style="background:#e8edf5;color:var(--blue);font-weight:700">DIFERENCIA</th>
-    <th style="background:#e8edf5;color:var(--blue);font-weight:700">VARIACIÓN %</th>
+    <th style="background:var(--acc-strong);color:var(--green-dark);font-weight:600">REAL ENE-${monthLabel}</th>
+    <th style="background:var(--acc-strong);color:var(--green-dark);font-weight:600">PPTO ENE-${monthLabel}</th>
+    <th style="background:var(--acc);color:var(--green-dark);font-weight:600">DIFERENCIA</th>
+    <th style="background:var(--acc);color:var(--green-dark);font-weight:600">VARIACIÓN %</th>
     ${MS.map((m,i)=>`<th style="${i>=mesHasta?'opacity:.45':''}">${m}</th>`).join('')}
   </tr></thead><tbody>`;
 
@@ -1433,14 +1519,14 @@ function totCell(v, kind, favDir, pVal) {
 
 // Celda de DIFERENCIA (Real - Ppto, acumulado). Color favorable/desfavorable según favDir.
 function difCell(v, favDir) {
-  const bg = '#e8edf5';
+  const bg = 'var(--acc)';
   if (v == null) return `<td style="background:${bg};font-weight:600">—</td>`;
   const cls = (favDir ? v>=0 : v<=0) ? 'dv-pos' : 'dv-neg';
   return `<td class="${cls}" style="background:${bg};font-weight:600">${v>=0?'+':''}${fmt(v)}</td>`;
 }
 // Celda de VARIACIÓN % ((Real - Ppto)/|Ppto|). Mismo criterio de color.
 function varCell(v, favDir) {
-  const bg = '#e8edf5';
+  const bg = 'var(--acc)';
   if (v == null) return `<td style="background:${bg};font-weight:600">—</td>`;
   const cls = (favDir ? v>=0 : v<=0) ? 'dv-pos' : 'dv-neg';
   return `<td class="${cls}" style="background:${bg};font-weight:600">${v>=0?'+':''}${v.toFixed(1)}%</td>`;
@@ -1459,7 +1545,7 @@ function buildTotalCells(valsR, valsP, favDir) {
 }
 
 function monthlySumRow(label, valsR, valsP, favDir, cls) {
-  const sticky = `style="text-align:left;position:sticky;left:0;z-index:1;background:${cls==='r-result'?'#fffbea':'#edf3f9'}"`;
+  const sticky = `style="text-align:left;position:sticky;left:0;z-index:1;background:${cls==='r-result'?'#fdf6e8':'var(--acc-cell)'}"`;
   return `<tr class="${cls}">
     <td ${sticky}>${label}</td>
     ${buildTotalCells(valsR, valsP, favDir)}
@@ -1480,7 +1566,7 @@ function minCuentaGrupo(rs, grupo, tipo) {
 // Usa SIEMPRE el dataset global (D.pyg/D.pre), no el filtrado por canal,
 // porque queremos ver el desglose por centro.
 function buildCentrosRows(cuenta, favDir, indent) {
-  const sty = `style="text-align:left;position:sticky;left:0;background:#fcfcfd;padding-left:${indent}px;color:var(--muted);font-style:italic;font-size:11px"`;
+  const sty = `style="text-align:left;position:sticky;left:0;background:#fbfbf9;padding-left:${indent}px;color:var(--muted);font-style:italic;font-size:11px"`;
   // Agrupamos las filas brutas de D.pyg por canal para esa cuenta
   // Si canal != TODOS, sólo mostramos ese canal (no tiene sentido desglosar uno solo, pero respetamos consistencia)
   const filas = D.pyg.filter(r => r.cuenta === cuenta && (canal === 'TODOS' || r.canal === canal));
@@ -1533,7 +1619,7 @@ function buildCentrosRows(cuenta, favDir, indent) {
 // Construye filas de detalle por PROVEEDOR de una cuenta y un centro (drill-down nivel 4).
 // Reparte la Base imponible por mes de fecha de factura. No lleva presupuesto.
 function buildProveedoresRows(cuenta, canalC, favDir, indent) {
-  const sty = `style="text-align:left;position:sticky;left:0;background:#fbfbfc;padding-left:${indent}px;color:#8a8f98;font-size:11px"`;
+  const sty = `style="text-align:left;position:sticky;left:0;background:#fafaf8;padding-left:${indent}px;color:#8c8c88;font-size:11px"`;
   if (!D.prov) return '';
   const filas = D.prov
     .filter(p => p.cuenta === cuenta && p.canal === canalC)
@@ -1562,8 +1648,8 @@ function buildGroupedRows(rows, rowsP) {
   const colSpan = 17; // 1 concepto + 4 totalizadoras + 12 meses
   tipos.forEach(({tipo, label}) => {
     const favDir = tipo==='ingreso';
-    html += `<tr class="r-grp" style="background:#e8edf5">
-      <td colspan="${colSpan}" style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--blue);position:sticky;left:0">${label}</td>
+    html += `<tr class="r-grp" style="background:var(--acc)">
+      <td colspan="${colSpan}" style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--green-dark);position:sticky;left:0">${label}</td>
     </tr>`;
 
     // Agregamos por grupo
@@ -1642,7 +1728,7 @@ function buildDetailRows(rows, rowsP) {
   let lastTipo = null;
   sorted.forEach(r => {
     if (r.tipo !== lastTipo) {
-      html += `<tr class="r-grp" style="background:#e8edf5"><td colspan="${colSpan}" style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--blue);position:sticky;left:0">${r.tipo==='ingreso'?'INGRESOS':'GASTOS'}</td></tr>`;
+      html += `<tr class="r-grp" style="background:var(--acc)"><td colspan="${colSpan}" style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--green-dark);position:sticky;left:0">${r.tipo==='ingreso'?'INGRESOS':'GASTOS'}</td></tr>`;
       lastTipo = r.tipo;
     }
     const favDir = r.tipo==='ingreso';
@@ -1791,13 +1877,13 @@ function buildNegocioTable() {
   document.getElementById('pyg-title').textContent = 'Vista por negocio';
   document.getElementById('pyg-sub').textContent = `Columnas: 4 totalizadoras + ${canales.join(' · ')}${usePresup ? ' · vs presupuesto' : ''}`;
 
-  const CANAL_COLS = ['#185FA5','#1D9E75','#9A6200','#7F77DD','#C0392B','#0F6E56','#D4537E','#5B6770'];
+  const CANAL_COLS = ['#185FA5','#1D9E75','#BA7517','#7F77DD','#A32D2D','#0F6E56','#D4537E','#5B6770'];
   let html = `<thead><tr>
     <th style="text-align:left;min-width:240px;position:sticky;left:0;z-index:2;background:var(--bg)">Concepto</th>
-    <th style="background:#dfeaf7;color:var(--blue);font-weight:700">REAL ENE-${monthLabel}</th>
-    <th style="background:#dfeaf7;color:var(--blue);font-weight:700">PPTO ENE-${monthLabel}</th>
-    <th style="background:#e8edf5;color:var(--blue);font-weight:700">DIFERENCIA</th>
-    <th style="background:#e8edf5;color:var(--blue);font-weight:700">VARIACIÓN %</th>
+    <th style="background:var(--acc-strong);color:var(--green-dark);font-weight:600">REAL ENE-${monthLabel}</th>
+    <th style="background:var(--acc-strong);color:var(--green-dark);font-weight:600">PPTO ENE-${monthLabel}</th>
+    <th style="background:var(--acc);color:var(--green-dark);font-weight:600">DIFERENCIA</th>
+    <th style="background:var(--acc);color:var(--green-dark);font-weight:600">VARIACIÓN %</th>
     ${canales.map((c,i)=>`<th style="color:${CANAL_COLS[i%CANAL_COLS.length]}">${c}</th>`).join('')}
   </tr></thead><tbody>`;
 
@@ -1841,8 +1927,8 @@ function buildNegocioTable() {
 
   tipos.forEach(({tipo, label}) => {
     const favDir = tipo === 'ingreso';
-    html += `<tr class="r-grp" style="background:#e8edf5">
-      <td colspan="${colSpanTotal}" style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--blue);position:sticky;left:0">${label}</td>
+    html += `<tr class="r-grp" style="background:var(--acc)">
+      <td colspan="${colSpanTotal}" style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--green-dark);position:sticky;left:0">${label}</td>
     </tr>`;
 
     if (detalle === 'grupo') {
@@ -1929,7 +2015,7 @@ function buildNegocioTable() {
   const totResMensP = totIngMensP ? totIngMensP.map((v,i)=>v - totGtoMensP[i]) : null;
 
   const negTotalRow = (label, mR, mP, favDir, cls, tipo) => {
-    const sticky = `style="text-align:left;position:sticky;left:0;background:${cls==='r-result'?'#fffbea':'#edf3f9'}"`;
+    const sticky = `style="text-align:left;position:sticky;left:0;background:${cls==='r-result'?'#fdf6e8':'var(--acc-cell)'}"`;
     return `<tr class="${cls}">
       <td ${sticky}>${label}</td>
       ${negTotCells(mR, mP, favDir)}
@@ -1976,7 +2062,7 @@ function buildEvolucionCharts(rows, rowsP) {
     type:'bar',
     data:{labels:MS,datasets:[
       {label:'Real',data:resM,backgroundColor:resM.map(v=>v>=0?'rgba(29,158,117,0.75)':'rgba(192,57,43,0.65)'),borderRadius:4},
-      ...(resPM?[{type:'line',label:'Presup.',data:resPM,borderColor:'#9A6200',borderDash:[4,3],backgroundColor:'transparent',pointRadius:3,tension:.3}]:[])
+      ...(resPM?[{type:'line',label:'Presup.',data:resPM,borderColor:'#BA7517',borderDash:[4,3],backgroundColor:'transparent',pointRadius:3,tension:.3}]:[])
     ]},
     options:{...baseOpts}
   });
@@ -1986,7 +2072,7 @@ function buildEvolucionCharts(rows, rowsP) {
     type:'line',
     data:{labels:MS,datasets:[
       {label:'Real',data:acumR,borderColor:'#1D9E75',backgroundColor:'rgba(29,158,117,0.07)',fill:true,tension:.3,pointRadius:4,pointBackgroundColor:'#1D9E75'},
-      ...(acumP?[{label:'Presup.',data:acumP,borderColor:'#9A6200',borderDash:[4,3],backgroundColor:'transparent',tension:.3,pointRadius:3}]:[])
+      ...(acumP?[{label:'Presup.',data:acumP,borderColor:'#BA7517',borderDash:[4,3],backgroundColor:'transparent',tension:.3,pointRadius:3}]:[])
     ]},
     options:{...baseOpts}
   });
@@ -2221,9 +2307,9 @@ function buildBalance() {
     orden.forEach(cat => {
       if (!bucket[cat]) return;
       const tCat = totales.porCat[cat] || 0;
-      html += `<tr class="r-grp" style="background:#e8edf5">
+      html += `<tr class="r-grp" style="background:var(--acc)">
         <td style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--blue);font-weight:600">${cat}</td>
-        <td style="font-weight:700;background:#dfeaf7">${fmt(tCat)}</td>
+        <td style="font-weight:700;background:var(--acc-strong)">${fmt(tCat)}</td>
       </tr>`;
 
       // Subepígrafes ordenados por importe absoluto descendente
@@ -2251,7 +2337,7 @@ function buildBalance() {
     // TOTAL
     html += `<tr class="r-total">
       <td style="font-weight:700">TOTAL</td>
-      <td style="font-weight:700;background:#d8e6f3">${fmt(totales.total)}</td>
+      <td style="font-weight:700;background:var(--acc-total)">${fmt(totales.total)}</td>
     </tr></tbody>`;
     return html;
   };
@@ -2457,7 +2543,7 @@ function buildPool() {
         html += `<td style="text-align:left;font-weight:700">${label}</td>`;
       } else {
         const total = tabla.data.filter(r=>!r._subtotal).reduce((s,r) => s + (parseFloat(r.raw[i]) || 0), 0);
-        html += `<td style="font-weight:700;background:#d8e6f3">${fmt(total)}</td>`;
+        html += `<td style="font-weight:700;background:var(--acc-total)">${fmt(total)}</td>`;
       }
     });
     html += `</tr></tbody>`;
@@ -2472,7 +2558,7 @@ function buildPool() {
 
 function resetApp() {
   D=null;
-  document.getElementById('app-screen').style.display='none';
+  document.getElementById('app-screen').classList.remove('on');
   Object.values(charts).forEach(c=>c.destroy());
   charts={};canal='TODOS';detalle='grupo';vistaPyg='mensual';modoPresup='real';mesHasta=12;expanded={};expandedCta={};expandedCC={};
   const sel = document.getElementById('sel-mes'); if (sel) sel.value = '12';
